@@ -204,7 +204,7 @@ void handleJson() {
 }
 
 void handleSettings() {
-
+    String successMsg = "";
     String type, _deviceName, _deviceLocation, _ssid, _password;
     for (int i = 0; i < server.args(); i++) {
         String argKey = server.argName(i);
@@ -232,12 +232,13 @@ void handleSettings() {
             MemoryAccess.writeAscii("Password", _password);
         }
         MemoryAccess.commit();
+        successMsg = "Settings updated!";
         while (1);
     }
 
     String htmlResponse = SETTINGS_page;
     htmlResponse.replace("{{NAME}}", deviceName);
-    htmlResponse.replace("{{SUCCESSMSG}}", "");
+    htmlResponse.replace("{{SUCCESSMSG}}", successMsg);
     htmlResponse.replace("{{DEVICENAME}}", deviceName);
     htmlResponse.replace("{{DEVICELOCATION}}", deviceLocation);
     server.send( 200, "text/html", htmlResponse );
