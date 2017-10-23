@@ -37,9 +37,9 @@ bool memoryAccess::writeAscii(String varName, String data) {
 
     int o = 0;
     for (int i = memAdress.startPos; i <= memAdress.endPos; i++) {
-        byte Cchar = data.charAt(o);
-        if (EEPROM.read(i) != Char) {
-            EEPROM.write(i, Cchar);
+        byte cChar = data.charAt(o);
+        if (EEPROM.read(i) != cChar) {
+            EEPROM.write(i, cChar);
         }
         o++;
     }
