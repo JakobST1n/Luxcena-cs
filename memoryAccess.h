@@ -9,9 +9,10 @@
 class memoryAccess {
     public:
         void init();
+        void write(int location, byte val);
+        void commit();
         bool writeAscii(String varName, String data);
         String readAscii(String varName);
-        void commit();
         void dump();
     private:
         struct memoryAdress getAdress(String varName);

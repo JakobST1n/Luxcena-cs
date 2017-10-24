@@ -22,9 +22,17 @@ struct memoryAdress memoryAccess::getAdress(String varName) {
     else if ((String) "deviceName" == varName)     { tmp = {20, 69}; }
     else if ((String) "deviceLocation" == varName) { tmp = {70, 119}; }
     else if ((String) "SSID" == varName)           { tmp = {120, 269}; }
-    else if ((String) "Password" == varName)       { tmp = {270, 219}; }
-    else { Serial.println("UNKNOWN MEMNAME"); }
+    else if ((String) "Password" == varName)       { tmp = {270, 319}; }
+    else {
+        Serial.println("");
+        Serial.print("UNKNOWN MEMNAME: ");
+        Serial.println(varName);
+    }
     return tmp;
+}
+
+void memoryAccess::write(int location, byte val) {
+    EEPROM.write(location, val);
 }
 
 bool memoryAccess::writeAscii(String varName, String data) {
