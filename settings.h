@@ -8,7 +8,7 @@ const char SETTINGS_page[] PROGMEM = R"=====(
 
         <title>{{NAME}}</title>
 
-        <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous">
+        {{BOOTSTRAPLINK}}
         <link rel="stylesheet" href="./style.css">
     </head>
 
@@ -16,13 +16,15 @@ const char SETTINGS_page[] PROGMEM = R"=====(
     <body>
 
         <nav class="navbar navbar-dark bg-dark">
-            <a class="navbar-brand" href="/">IOT Device</a>
-            <a class="navbar-toggler navbar-toggler-right" href="/settings">
-                    &#9881;
-                </a>
+            <a id="homePageAddr" class="navbar-brand" href="/">IOT Device</a>
+            <a id="settingsPageAddr" class="navbar-toggler navbar-toggler-right" href="/settings">
+                &#9881;
+            </a>
         </nav>
 
         <div class="container-fluid pt-3 pb-3">
+
+            <div id="success-box" class="alert alert-success" role="alert">{{SUCCESSMSG}}</div>
 
             <div class="alert alert-danger" role="alert">
               <b>Warning:</b> The password-protection does not work yet! Make sure to don´t expose the device.
@@ -42,7 +44,7 @@ const char SETTINGS_page[] PROGMEM = R"=====(
                             <div class="form-group row">
 
                                 <div class="col-sm-12">
-                                    <input type="password" class="form-control" id="name" placeholder="Device password" readonly>
+                                    <input type="password" class="form-control" id="" placeholder="Device password" readonly>
                                 </div>
                             </div>
 
@@ -60,35 +62,37 @@ const char SETTINGS_page[] PROGMEM = R"=====(
                     </div>
 
                     <div class="container">
-                        <form>
+                        <form method="post">
+
+                            <input type="hidden" name="type" value="settings">
 
                             <h5 class="small text-muted">Device settings:</h5>
                             <div class="form-group row">
-                                <label for="inputEmail3" class="col-sm-2 col-form-label">Device name</label>
+                                <label for="lblDeviceName" class="col-sm-2 col-form-label">Device name</label>
                                 <div class="col-sm-10">
-                                    <input type="name" class="form-control" id="name" placeholder="Rooflight">
+                                    <input type="text" class="form-control" name="txtDeviceName" id="txtDeviceName" placeholder="Ex. Rooflight">
                                 </div>
                             </div>
 
                             <div class="form-group row">
-                                <label for="inputEmail3" class="col-sm-2 col-form-label">Location</label>
+                                <label for="lblDeviceLocation" class="col-sm-2 col-form-label">Location</label>
                                 <div class="col-sm-10">
-                                    <input type="name" class="form-control" id="name" placeholder="Bathroom">
+                                    <input type="text" class="form-control" name="txtDeviceLocation" id="txtDeviceLocation" placeholder="Ex. Bathroom">
                                 </div>
                             </div>
 
                             <h5 class="small text-muted">Wifi settings:</h5>
                             <div class="form-group row">
-                                <label for="inputEmail3" class="col-sm-2 col-form-label">SSID</label>
+                                <label for="lblSSID" class="col-sm-2 col-form-label">SSID</label>
                                 <div class="col-sm-10">
-                                    <input type="name" class="form-control" id="name" placeholder="Name of router">
+                                    <input type="name" class="form-control" name="txtSSID" id="txtSSID" placeholder="Name of router">
                                 </div>
                             </div>
 
                             <div class="form-group row">
-                                <label for="inputEmail3" class="col-sm-2 col-form-label">Pasword</label>
+                                <label for="lblPassword" class="col-sm-2 col-form-label">Pasword</label>
                                 <div class="col-sm-10">
-                                    <input type="name" class="form-control" id="name" placeholder="Passphrase (If open, write nothing)">
+                                    <input type="name" class="form-control" name="txtPassword" id="txtPassword" placeholder="Passphrase (If open, write nothing)">
                                 </div>
                             </div>
 
@@ -96,8 +100,8 @@ const char SETTINGS_page[] PROGMEM = R"=====(
                                 <div class="col-sm-10">
 
                                     <button type="submit" class="btn btn-primary">Save</button>
-                                    <button type="submit" class="btn btn-muted">Cancel</button>
                                     <br /><span class="small text-muted"> <b> Note:</b> The device will reboot and turn of any connected appliances when you save the settings.</span>
+                                    <br /><span class="small text-muted"> <b> Note:</b> Empty or unchanged fields will not be updated.</span>
                                 </div>
                             </div>
 
@@ -140,6 +144,25 @@ const char SETTINGS_page[] PROGMEM = R"=====(
             </div>
         </div>
 
+
+        <script src="/script.js" charset="utf-8"></script>
+        <script type="text/javascript">
+            fixNoNetwork();
+            var successAlert = document.getElementById('success-box');
+
+            updatePlaceholder("txtDeviceName", "{{DEVICENAME}}");
+            updatePlaceholder("txtDeviceLocation", "{{DEVICELOCATION}}");;
+
+            if (successAlert.innerHTML.length < 1) {
+                successAlert.style.display = "none";
+            }
+
+            function updatePlaceholder(elemId, textToInsert) {
+                var field = document.getElementById(elemId);
+                if (textToInsert != "") { field.placeholder = "Curr; " + textToInsert }
+            }
+
+        </script>
     </body>
 
     </html>

@@ -7,7 +7,7 @@
 
     <title>{{NAME}}</title>
 
-    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous">
+    {{BOOTSTRAPLINK}}
     <link rel="stylesheet" href="./style.css">
 </head>
 
@@ -15,17 +15,15 @@
 <body>
 
     <nav class="navbar navbar-dark bg-dark">
-        <a class="navbar-brand" href="/">IOT Device</a>
-        <a class="navbar-toggler navbar-toggler-right" href="/settings">
-                &#9881;
-            </a>
+        <a id="homePageAddr" class="navbar-brand" href="/">IOT Device</a>
+        <a id="settingsPageAddr" class="navbar-toggler navbar-toggler-right" href="/settings">
+            &#9881;
+        </a>
     </nav>
 
     <div class="container-fluid pt-3 pb-3">
 
-        <div id="success-box" class="alert alert-success" role="alert">
-            {{SUCCESSMSG}}
-        </div>
+        <div id="success-box" class="alert alert-success" role="alert">{{SUCCESSMSG}}</div>
 
         <div class="alert alert-danger" role="alert">
           <b>Warning:</b> The password-protection does not work yet! Make sure to don´t expose the device.
@@ -146,13 +144,15 @@
     </div>
 
 
+    <script src="/script.js" charset="utf-8"></script>
     <script type="text/javascript">
+        fixNoNetwork();
         var successAlert = document.getElementById('success-box');
 
         updatePlaceholder("txtDeviceName", "{{DEVICENAME}}");
         updatePlaceholder("txtDeviceLocation", "{{DEVICELOCATION}}");;
 
-        if (successAlert.innerHtml == "") {
+        if (successAlert.innerHTML.length < 1) {
             successAlert.style.display = "none";
         }
 
