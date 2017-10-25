@@ -2,10 +2,12 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
+#include <FS.h>
 #include <EEPROM.h>
 #include "memoryAccess.h"
 
 #include "style.h"     // custom stylesheet, get it from stylesheet
+#include "script.h"
 #include "index.h"     // Index page html, get it from MAIN_page
 #include "settings.h"  // Settings page html, get it from SETTINGS_page
 
@@ -34,11 +36,12 @@ ESP8266WebServer server ( 80 );  // webServer on port 80
 void setup ( void ) {
     // Activate serial
     Serial.begin ( 115200 );
+    //Serial.setDebugOutput(true);
+    SPIFFS.begin();
     MemoryAccess.init();
-    MemoryAccess.dump();
 
 
-    if (MemoryAccess.readAscii("version")) {
+    if (MemoryAccess.readAscii("version") == MemoryAccessVersion) {
         deviceName = MemoryAccess.readAscii("deviceName");
         deviceLocation = MemoryAccess.readAscii("deviceLocation");
         deviceId = MemoryAccess.readAscii("deviceId");
@@ -47,15 +50,16 @@ void setup ( void ) {
         (deviceType + "-" + deviceId).toCharArray(APssid, 30);
     } else {
         // SET TO DEFAULT VALUES
+        String _uniqId = uniqId();
         MemoryAccess.writeAscii("version", MemoryAccessVersion);
-        MemoryAccess.writeAscii("deviceName", "");
-        MemoryAccess.writeAscii("deviceLocation", "");
-        MemoryAccess.writeAscii("deviceGuid", uniqId());
-        MemoryAccess.writeAscii("SSID", "");
+        MemoryAccess.writeAscii("deviceName", "clapSensor" + _uniqId);
+        MemoryAccess.writeAscii("deviceLocation", "Milky way");
+        MemoryAccess.writeAscii("deviceId", _uniqId);
+        MemoryAccess.writeAscii("SSID", ".");
         MemoryAccess.writeAscii("Password", "");
         MemoryAccess.commit();
-        Serial.println("Have set default values, making watchdog boot us!");
-        while (1);
+        Serial.println("Have set default values.");
+        hardReset();
     }
 
     Serial.print("ssid: ");
@@ -93,6 +97,7 @@ void setup ( void ) {
     Serial.println ( "" );
 
     if (connTime >= wifiConnectionTimeout) {
+        WiFi.disconnect();
         WiFi.softAP(APssid);  // add password here as second parameter, currently just a open hotspot
         IPAddress myIP = WiFi.softAPIP();
         Serial.print("APssid: ");
@@ -117,10 +122,9 @@ void setup ( void ) {
     server.on ( "/j/", handleJson );
     server.on ( "/j", handleJson );
     // Others
-    server.on ( "/style.css", handleStylesheet);
-    server.on ( "/inline", []() {
-        server.send ( 200, "text/plain", "this works as well" );
-    } );
+    server.on ( "/style.css", handleStylesheet );
+    server.on ( "/script.js", handleScript );
+    server.serveStatic("/bootstrap.css", SPIFFS, "/bootstrap.css");
     server.onNotFound ( handleNotFound );
     server.begin();
     Serial.println ( "HTTP server started" );
@@ -141,7 +145,22 @@ void loop ( void ) {
 }
 
 String uniqId() {
-    return "AAAAAAAAAA";
+    randomSeed(analogRead(0));
+    String _uniqId = "";
+    for (int i = 0; i < 10; i++) {
+        int currSet = random(1,3);
+        if (currSet == 1) {
+            char chr = random(48, 57);
+            _uniqId += String(chr);
+        } else if (currSet == 2) {
+            char chr = random(65, 90);
+            _uniqId += String(chr);
+        } else {
+            char chr = random(97, 122);
+            _uniqId += String(chr);
+        }
+    }
+    return(_uniqId);
 }
 
 void setLamp(String action) {
@@ -164,10 +183,30 @@ void setSensor(String action) {
 }
 
 void handleRoot() {
-  String htmlPage = MAIN_page;
-  htmlPage.replace("{{NAME}}", deviceName);
-  htmlPage.replace("{{Location}}", deviceLocation);
-  server.send ( 200, "text/html", htmlPage);
+
+    String bootstrapLink = "<link rel=\"stylesheet\" href=\"https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css\" integrity=\"sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb\" crossorigin=\"anonymous\">";
+
+    for (int i = 0; i < server.args(); i++) {
+        String argKey = server.argName(i);
+        String argVal = server.arg(i);
+        if (argKey == "l") { bootstrapLink = "<link rel=\"stylesheet\" href=\"./bootstrap.css\">"; }
+    }
+
+    String htmlPage = MAIN_page;
+    htmlPage.replace("{{NAME}}", deviceName);
+    htmlPage.replace("{{Location}}", deviceLocation);
+    htmlPage.replace("{{BOOTSTRAPLINK}}", bootstrapLink);
+    if (lampOn) {
+        htmlPage.replace("{{LAMPACTIVECHECKED}}", "checked");
+    } else {
+        htmlPage.replace("{{LAMPACTIVECHECKED}}", "");
+    }
+    if (sensorActive) {
+        htmlPage.replace("{{SENSORCHECKED}}", "checked");
+    } else {
+        htmlPage.replace("{{SENSORCHECKED}}", "");
+    }
+    server.send ( 200, "text/html", htmlPage);
 }
 
 void handleJson() {
@@ -204,11 +243,14 @@ void handleJson() {
 }
 
 void handleSettings() {
+    bool settingsSaved = false;
     String successMsg = "";
+    String bootstrapLink = "<link rel=\"stylesheet\" href=\"https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css\" integrity=\"sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb\" crossorigin=\"anonymous\">";
     String type, _deviceName, _deviceLocation, _ssid, _password;
+
     for (int i = 0; i < server.args(); i++) {
         String argKey = server.argName(i);
-        String argVal = server.arg(i);
+        String argVal = stripString(server.arg(i));
 
         if (argKey == "txtDeviceName") {
             _deviceName = argVal;
@@ -218,6 +260,10 @@ void handleSettings() {
             _ssid = argVal;
         } else if (argKey == "txtPassword") {
             _password = argVal;
+        } else if (argKey == "type") {
+            type = argVal;
+        } else if (argKey == "l") {
+            bootstrapLink = "<link rel=\"stylesheet\" href=\"./bootstrap.css\">";
         }
     }
 
@@ -228,12 +274,13 @@ void handleSettings() {
             MemoryAccess.writeAscii("deviceLocation", _deviceLocation);
         } else if (_ssid != "") {
             MemoryAccess.writeAscii("SSID", _ssid);
-        } else if (_password != "") {
             MemoryAccess.writeAscii("Password", _password);
         }
         MemoryAccess.commit();
         successMsg = "Settings updated!";
-        while (1);
+        settingsSaved = true;
+    } else {
+        Serial.println("Type undefined...");
     }
 
     String htmlResponse = SETTINGS_page;
@@ -241,12 +288,19 @@ void handleSettings() {
     htmlResponse.replace("{{SUCCESSMSG}}", successMsg);
     htmlResponse.replace("{{DEVICENAME}}", deviceName);
     htmlResponse.replace("{{DEVICELOCATION}}", deviceLocation);
+    htmlResponse.replace("{{BOOTSTRAPLINK}}", bootstrapLink);
     server.send( 200, "text/html", htmlResponse );
+
+    if (settingsSaved) { hardReset(); }
 }
 
 void handleStylesheet() {
     String style = stylesheet;
     server.send ( 200, "text/css", style);
+}
+
+void handleScript() {
+    server.send( 200, "text/javascript", main_script);
 }
 
 void handleNotFound() {
@@ -264,4 +318,16 @@ void handleNotFound() {
   }
 
   server.send ( 404, "text/plain", message );
+}
+
+String stripString(String _string) {
+    _string.replace("\n", "");
+    return _string;
+}
+
+void hardReset() {
+    Serial.println("Triggering Watchdog hard reset in 1 sec...");
+    ESP.wdtDisable();
+    delay(1000);
+    while (1);
 }
