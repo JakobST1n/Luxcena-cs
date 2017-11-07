@@ -14,7 +14,7 @@
 // User variables
 const String MemoryAccessVersion = "cp-a1";
 const String deviceType = "clapSensor";           // This is what kind of device it is, crucial for the homeServer when determing which API to use
-const int wifiConnectionTimeout = 5;              // n*5 sec
+const int wifiConnectionTimeout = 5;              // n*1 sec
 char ssid[30];
 char password[30];
 char APssid[30];
@@ -30,6 +30,11 @@ const int sensorPin = 5;  // Pin the sensor is connected to
 bool lampOn;        // Is the appliance turned on?
 bool sensorActive;  // Should we care about sensor input?
 bool buttonState;   // Used to make button not flash indefinetly
+
+int sensorvalue=0;
+int eventstatus = 0;
+int sensorthresholdhigh = 870;
+int sensorthresholdlow = 500;
 
 ESP8266WebServer server ( 80 );  // webServer on port 80
 
@@ -80,7 +85,6 @@ void setup ( void ) {
     lampOn = false; // Vil at denne skal bli husket, altså være samme etter boot
     sensorActive = true;
     digitalWrite(lampPin, lampOn);
-    digitalWrite(sensorPin, sensorActive);
 
     // Try to connect to WiFi
     WiFi.begin ( ssid, password );
@@ -96,19 +100,19 @@ void setup ( void ) {
 
     Serial.println ( "" );
 
-    if (connTime >= wifiConnectionTimeout) {
+    if ( WiFi.status() == WL_CONNECTED ) {
+        Serial.print ( "Connected to " );
+        Serial.println ( ssid );
+        Serial.print ( "IP address: " );
+        Serial.println ( WiFi.localIP() );
+    } else {
         WiFi.disconnect();
         WiFi.softAP(APssid);  // add password here as second parameter, currently just a open hotspot
         IPAddress myIP = WiFi.softAPIP();
         Serial.print("APssid: ");
         Serial.println(APssid);
-    	Serial.print("AP IP address: ");
-    	Serial.println(myIP);
-    } else {
-        Serial.print ( "Connected to " );
-        Serial.println ( ssid );
-        Serial.print ( "IP address: " );
-        Serial.println ( WiFi.localIP() );
+        Serial.print("AP IP address: ");
+        Serial.println(myIP);
     }
 
     if ( MDNS.begin ( "esp8266" ) ) {
@@ -133,13 +137,12 @@ void setup ( void ) {
 void loop ( void ) {
   server.handleClient();
 
+  //Serial.print("SENSOR VAL: ");
+  Serial.println(analogRead(A0));
   if (sensorActive) {
-      bool currButtonState = digitalRead(sensorPin);
-      if (currButtonState == true && buttonState == false) {
-          setLamp("TOGGLE");
-
-      }
-      buttonState = currButtonState;
+    if (analogRead(A0) > 500) {
+        setLamp("TOGGLE");
+    }
   }
 
 }
@@ -218,7 +221,8 @@ void handleJson() {
 
         if (argKey == "lamp") {
             if (argVal == "1" || argVal == "true") { setLamp("ON"); }
-            else { setLamp("OFF"); }
+            else if (argVal == "0" || argVal == "false") { setLamp("OFF"); }
+            else if (argVal == "toggle" || argVal == "TOGGLE"){ setLamp("TOGGLE"); }
         } else if (argKey == "sens") {
             if (argVal == "1" || argVal == "true") { setSensor("ON"); }
             else { setSensor("OFF"); }
