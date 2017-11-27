@@ -31,10 +31,18 @@ bool lampOn;        // Is the appliance turned on?
 bool sensorActive;  // Should we care about sensor input?
 bool buttonState;   // Used to make button not flash indefinetly
 
-int sensorvalue=0;
-int eventstatus = 0;
-int sensorthresholdhigh = 870;
-int sensorthresholdlow = 500;
+const int bufferSize = 19;  // This will be 20 samples, counting with zero
+long sampleRate = 100;
+long lastSampleTime = 0;
+int soundBuffer[bufferSize + 1];  // with a sampleRate of 100, this is 2 seconds worth of sound
+int sensorvalue = 0;
+int samplePeak = 0;
+int nClaps = 0;
+int sensorthresholdlow = 650;
+
+long timeOfLastClap = 0;
+long minTimeBetweenClaps = 1000;
+long maxTimeBetweenClaps = 8000;
 
 ESP8266WebServer server ( 80 );  // webServer on port 80
 
@@ -81,7 +89,7 @@ void setup ( void ) {
 
     // Setup pins and set default values
     pinMode ( lampPin, OUTPUT );
-    pinMode ( sensorPin, INPUT );
+    //pinMode ( sensorPin, INPUT );
     lampOn = false; // Vil at denne skal bli husket, altså være samme etter boot
     sensorActive = true;
     digitalWrite(lampPin, lampOn);
@@ -135,16 +143,64 @@ void setup ( void ) {
 }
 
 void loop ( void ) {
+  // First thing to do, handle networking
   server.handleClient();
 
-  //Serial.print("SENSOR VAL: ");
-  Serial.println(analogRead(A0));
-  if (sensorActive) {
-    if (analogRead(A0) > 500) {
-        setLamp("TOGGLE");
+  // Check if we are ready to do a new sample, if not find heigth of current
+  unsigned long currentMillis = millis();
+  sensorvalue = analogRead(A0);
+  if (currentMillis < lastSampleTime + sampleRate) {
+      if (sensorvalue > samplePeak) {
+          samplePeak = sensorvalue;
+      }
+      return;  // Exit if we are not ready to process this sample
+  }
+
+  int sample = 0;  // This is the bin value of this sample
+  if (samplePeak >= sensorthresholdlow) { sample = 1; }  // Set to one if it reads "HIGH"
+  // Left shift buffer
+  for (int i = 0; i < bufferSize; i++) {
+    soundBuffer[i] = soundBuffer[i + 1];
+  }
+  // Add current sample to the end
+  soundBuffer[bufferSize] = sample;
+
+  // Cleanup
+  samplePeak = 0;
+  lastSampleTime = currentMillis;
+
+
+  // Check if buffer contains two claps
+  int checkert = 1;
+  int n = 0;
+  int o = 0;
+  for (int i = 0; i < bufferSize; i++) {
+      if (soundBuffer[i] == checkert) {
+        n++;
+    } else {
+        if (n < 3 && n > 0) {
+            if (checkert == 0) { checkert = 1; }
+            else { checkert = 0; }
+            n = 0;
+            o++;
+            if (0 >= 4) {
+                setLamp("TOGGLE");
+                break;
+            }
+        } else {
+            break;
+        }
     }
   }
 
+
+  // DEBUG PRINT BUFFER
+  String output = "";
+  for (int i = 0; i <= bufferSize; i++) {
+      output += "[" + String(soundBuffer[i]) + "]";
+  }
+  //Serial.print(output);
+  //Serial.println(samplePeak);
 }
 
 String uniqId() {
