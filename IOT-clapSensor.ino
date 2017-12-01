@@ -6,6 +6,7 @@
 #include <EEPROM.h>
 #include "memoryAccess.h"
 
+// I have saved the html, js and css like this (Except bootstrap) because it takes so long to upload to SPIFFS. which makes it almost impossible to debug and test
 #include "style.h"     // custom stylesheet, get it from stylesheet
 #include "script.h"
 #include "index.h"     // Index page html, get it from MAIN_page
@@ -24,25 +25,25 @@ String deviceId;
 
 memoryAccess MemoryAccess;
 
-const int lampPin = 14;   // Pin the appliance is connected to
+const int lampPin = 14;   // Pin the appliance is connected to 14!
 const int sensorPin = 5;  // Pin the sensor is connected to
 
 bool lampOn;        // Is the appliance turned on?
 bool sensorActive;  // Should we care about sensor input?
-bool buttonState;   // Used to make button not flash indefinetly
 
-const int bufferSize = 19;  // This will be 20 samples, counting with zero
-long sampleRate = 100;
-long lastSampleTime = 0;
+long sampleRate = 1;          // milliseconds
+long bufferPushRate = 100;    // milliseconds
+const int bufferSize = 5;     // This will be 20 samples, counting with zero
+
 int soundBuffer[bufferSize + 1];  // with a sampleRate of 100, this is 2 seconds worth of sound
+long currentMillis = 0;
+long lastSampleTime = 0;
+long lastBufferPushTime = 0;
 int sensorvalue = 0;
 int samplePeak = 0;
-int nClaps = 0;
-int sensorthresholdlow = 650;
 
-long timeOfLastClap = 0;
-long minTimeBetweenClaps = 1000;
-long maxTimeBetweenClaps = 8000;
+int sensorthreshold = 600;
+int bufferKey[6] = {0, 0, 1, 0, 1, 0};
 
 ESP8266WebServer server ( 80 );  // webServer on port 80
 
@@ -52,7 +53,6 @@ void setup ( void ) {
     //Serial.setDebugOutput(true);
     SPIFFS.begin();
     MemoryAccess.init();
-
 
     if (MemoryAccess.readAscii("version") == MemoryAccessVersion) {
         deviceName = MemoryAccess.readAscii("deviceName");
@@ -89,7 +89,6 @@ void setup ( void ) {
 
     // Setup pins and set default values
     pinMode ( lampPin, OUTPUT );
-    //pinMode ( sensorPin, INPUT );
     lampOn = false; // Vil at denne skal bli husket, altså være samme etter boot
     sensorActive = true;
     digitalWrite(lampPin, lampOn);
@@ -115,7 +114,7 @@ void setup ( void ) {
         Serial.println ( WiFi.localIP() );
     } else {
         WiFi.disconnect();
-        WiFi.softAP(APssid);  // add password here as second parameter, currently just a open hotspot
+        //WiFi.softAP(APssid);  // add password here as second parameter, currently just a open hotspot
         IPAddress myIP = WiFi.softAPIP();
         Serial.print("APssid: ");
         Serial.println(APssid);
@@ -143,68 +142,76 @@ void setup ( void ) {
 }
 
 void loop ( void ) {
-  // First thing to do, handle networking
-  server.handleClient();
+    server.handleClient();
 
-  // Check if we are ready to do a new sample, if not find heigth of current
-  unsigned long currentMillis = millis();
-  sensorvalue = analogRead(A0);
-  if (currentMillis < lastSampleTime + sampleRate) {
-      if (sensorvalue > samplePeak) {
-          samplePeak = sensorvalue;
-      }
-      return;  // Exit if we are not ready to process this sample
-  }
+    if (!sensorActive) { return; }  // We can return to the beginning if the sensor is inactive
 
-  int sample = 0;  // This is the bin value of this sample
-  if (samplePeak >= sensorthresholdlow) { sample = 1; }  // Set to one if it reads "HIGH"
-  // Left shift buffer
-  for (int i = 0; i < bufferSize; i++) {
-    soundBuffer[i] = soundBuffer[i + 1];
-  }
-  // Add current sample to the end
-  soundBuffer[bufferSize] = sample;
+    currentMillis = millis();
+    if (currentMillis > lastSampleTime + sampleRate) {
+        sample();
+    }
 
-  // Cleanup
-  samplePeak = 0;
-  lastSampleTime = currentMillis;
+    if (currentMillis > lastBufferPushTime + bufferPushRate) {
+        pushSampleToBuffer();
+        bufferAlgo();
+        dumpBuffer();
+    }
+}
 
+void sample() {
+    /* Sample, and compare value with highest peak of "current sample" */
+    sensorvalue = analogRead(A0);
+    if (sensorvalue >= samplePeak) {
+        samplePeak = sensorvalue;
+    }
+    lastSampleTime = currentMillis;
+}
 
-  // Check if buffer contains two claps
-  int checkert = 1;
-  int n = 0;
-  int o = 0;
-  for (int i = 0; i < bufferSize; i++) {
-      if (soundBuffer[i] == checkert) {
-        n++;
-    } else {
-        if (n < 3 && n > 0) {
-            if (checkert == 0) { checkert = 1; }
-            else { checkert = 0; }
-            n = 0;
-            o++;
-            if (0 >= 4) {
-                setLamp("TOGGLE");
-                break;
-            }
-        } else {
-            break;
+void pushSampleToBuffer() {
+    /* This method left shifts the soundBuffer and adds the current sample to the end */
+    int sample = 0;  // This is the bin value of this sample
+    if (samplePeak >= sensorthreshold) { sample = 1; }  // Set to one if it reads "HIGH"
+
+    // Left shift buffer
+    for (int i = 0; i < bufferSize; i++) {
+        soundBuffer[i] = soundBuffer[i + 1];
+        yield();
+    }
+    // Add current sample to the end
+    soundBuffer[bufferSize] = sample;
+
+    // Cleanup
+    samplePeak = 0;
+    // "Reset timer"
+    lastBufferPushTime = currentMillis;
+}
+
+void bufferAlgo() {
+    /* This is the algorithm for checking if a clap is detected */
+    for (int i = 0; i <= bufferSize; i++) {
+        if (soundBuffer[i] != bufferKey[i]) {
+            return;
         }
     }
-  }
 
+    setLamp("TOGGLE");
 
-  // DEBUG PRINT BUFFER
-  String output = "";
-  for (int i = 0; i <= bufferSize; i++) {
-      output += "[" + String(soundBuffer[i]) + "]";
-  }
-  //Serial.print(output);
-  //Serial.println(samplePeak);
+    for (int i = 0; i <= bufferSize; i++) {
+        soundBuffer[i] = 0;
+    }
+
+}
+
+void dumpBuffer() {
+    String output = "";
+    for (int i = 0; i <= bufferSize; i++) {
+        output+= ("[" + String(soundBuffer[i]) + "]");
+    }
+    Serial.println(output);
 }
 
 String uniqId() {
-    randomSeed(analogRead(0));
+    randomSeed(analogRead(A0));
     String _uniqId = "";
     for (int i = 0; i < 10; i++) {
         int currSet = random(1,3);
@@ -231,6 +238,7 @@ void setLamp(String action) {
         lampOn = !lampOn;
     }
     digitalWrite(lampPin, lampOn);
+    yield();
 }
 
 void setSensor(String action) {
