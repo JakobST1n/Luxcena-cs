@@ -45,6 +45,7 @@ int samplePeak = 0;
 int sensorthreshold = 600;
 int bufferKey[6] = {0, 0, 1, 0, 1, 0};
 
+
 ESP8266WebServer server ( 80 );  // webServer on port 80
 
 void setup ( void ) {
@@ -90,10 +91,10 @@ void setup ( void ) {
     // Setup pins and set default values
     pinMode ( lampPin, OUTPUT );
     lampOn = false; // Vil at denne skal bli husket, altså være samme etter boot
-    sensorActive = true;
+    sensorActive = false;
     digitalWrite(lampPin, lampOn);
 
-    // Try to connect to WiFi
+    // Try to connect to WiFia
     WiFi.begin ( ssid, password );
 
     // Wait for connection
@@ -114,7 +115,7 @@ void setup ( void ) {
         Serial.println ( WiFi.localIP() );
     } else {
         WiFi.disconnect();
-        //WiFi.softAP(APssid);  // add password here as second parameter, currently just a open hotspot
+        WiFi.softAP(APssid);  // add password here as second parameter, currently just a open hotspot
         IPAddress myIP = WiFi.softAPIP();
         Serial.print("APssid: ");
         Serial.println(APssid);
@@ -198,6 +199,18 @@ void bufferAlgo() {
 
     for (int i = 0; i <= bufferSize; i++) {
         soundBuffer[i] = 0;
+    }
+
+}
+
+void bufferAlgoLong() {
+
+    bool foundPulse = false;
+
+    for (int i = 0; i <= bufferSize; i++) {
+        if (soundBuffer[i] == 1) {
+
+        }
     }
 
 }
