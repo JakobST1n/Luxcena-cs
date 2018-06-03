@@ -15,7 +15,7 @@
 // User variables
 const String MemoryAccessVersion = "cp-a1";
 const String deviceType = "clapSensor";           // This is what kind of device it is, crucial for the homeServer when determing which API to use
-const int wifiConnectionTimeout = 5;              // n*1 sec
+const int wifiConnectionTimeout = 10;              // n*1 sec
 char ssid[30];
 char password[30];
 char APssid[30];
@@ -45,7 +45,6 @@ int samplePeak = 0;
 int sensorthreshold = 600;
 int bufferKey[6] = {0, 0, 1, 0, 1, 0};
 
-
 ESP8266WebServer server ( 80 );  // webServer on port 80
 
 void setup ( void ) {
@@ -72,10 +71,11 @@ void setup ( void ) {
         MemoryAccess.writeAscii("SSID", ".");
         MemoryAccess.writeAscii("Password", "");
         MemoryAccess.commit();
-        Serial.println("Have set default values.");
+        Serial.println("Had set default values.");
         hardReset();
     }
 
+    Serial.println("");
     Serial.print("ssid: ");
     Serial.println(ssid);
     Serial.print("Password: ");
@@ -107,6 +107,17 @@ void setup ( void ) {
     }
 
     Serial.println ( "" );
+
+    uint8_t cStatus = WiFi.status();
+    if (cStatus == WL_NO_SHIELD) { Serial.println("No shield is connected [code: 255 (WL_NO_SHIELD)]"); }
+    else if (cStatus == WL_IDLE_STATUS) { Serial.println("WiFi connection timed out [code: 0 (WL_IDLE_STATUS)]"); }
+    else if (cStatus == WL_NO_SSID_AVAIL) { Serial.println("SSID not available [code: 1 (WL_NO_SSID_AVAIL)]"); }
+    else if (cStatus == WL_SCAN_COMPLETED) { Serial.println("Networks have been scanned for some reason [code: 2 (WL_SCAN_COMPLETED)]"); }
+    else if (cStatus == WL_CONNECTED) { Serial.println("Network is now connected [code: 3 (WL_CONNECTED)]"); }
+    else if (cStatus == WL_CONNECT_FAILED) { Serial.println("Connection attemt limit reached, could not connect [code: 4 (WL_CONNECT_FAILED)]"); }
+    else if (cStatus == WL_CONNECTION_LOST) { Serial.println("EEEHm, connection was apparently lost right away... [code: 5 (WL_CONNECTION_LOST)]"); }
+    else if (cStatus == WL_DISCONNECTED) { Serial.println("Could not connect [code: 6 (WL_DISCONNECTED)]"); }
+    Serial.println();
 
     if ( WiFi.status() == WL_CONNECTED ) {
         Serial.print ( "Connected to " );
@@ -144,6 +155,19 @@ void setup ( void ) {
 
 void loop ( void ) {
     server.handleClient();
+
+    uint8_t cStatus = WiFi.status();
+    if (cStatus != WL_CONNECTED) {
+        Serial.println("Something fishy happend to our WiFi: ");
+        if (cStatus == WL_NO_SHIELD) { Serial.println("No shield is connected [code: 255 (WL_NO_SHIELD)]"); }
+        else if (cStatus == WL_IDLE_STATUS) { Serial.println("WiFi connection timed out [code: 0 (WL_IDLE_STATUS)]"); }
+        else if (cStatus == WL_NO_SSID_AVAIL) { Serial.println("SSID not available [code: 1 (WL_NO_SSID_AVAIL)]"); }
+        else if (cStatus == WL_SCAN_COMPLETED) { Serial.println("Networks have been scanned for some reason [code: 2 (WL_SCAN_COMPLETED)]"); }
+        else if (cStatus == WL_CONNECTED) { Serial.println("Network is now connected [code: 3 (WL_CONNECTED)]"); }
+        else if (cStatus == WL_CONNECT_FAILED) { Serial.println("Connection attemt limit reached, could not connect [code: 4 (WL_CONNECT_FAILED)]"); }
+        else if (cStatus == WL_CONNECTION_LOST) { Serial.println("EEEHm, connection was apparently lost right away... [code: 5 (WL_CONNECTION_LOST)]"); }
+        else if (cStatus == WL_DISCONNECTED) { Serial.println("Could not connect [code: 6 (WL_DISCONNECTED)]"); }
+    }
 
     if (!sensorActive) { return; }  // We can return to the beginning if the sensor is inactive
 
