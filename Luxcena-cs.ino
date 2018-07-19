@@ -1,6 +1,7 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
+#include <ESP8266HTTPUpdateServer.h>
 #include <ESP8266mDNS.h>
 #include <FS.h>
 #include <EEPROM.h>
@@ -46,6 +47,7 @@ int sensorthreshold = 600;
 int bufferKey[6] = {0, 0, 1, 0, 1, 0};
 
 ESP8266WebServer server ( 80 );  // webServer on port 80
+ESP8266HTTPUpdateServer httpUpdater;
 
 void setup ( void ) {
     // Activate serial
@@ -134,10 +136,12 @@ void setup ( void ) {
         Serial.println(myIP);
     }
 
-    if ( MDNS.begin ( "esp8266" ) ) {
+    if ( MDNS.begin ( "clapSensor" ) ) {
         Serial.println ( "MDNS responder started" );
     }
 
+    httpUpdater.setup(&server);
+    
     // Gui
     server.on ( "/", handleRoot );
     server.on ( "/settings", handleSettings );
@@ -178,17 +182,20 @@ void loop ( void ) {
 
     eventStatus = 0;
     sensorValue = analogRead(A0);
+    //Serial.println(sensorValue);
     delay(1);
 
     if (eventStatus == 0) {
       if (sensorValue > sensorThresholdHigh) {
+        Serial.println("Level up: 1");
         eventStatus = 1;
       }
     }
-    if (eventStatus == 0) {
+    if (eventStatus == 1) {
       for (int i = 0; i > 10; i++) {
         sensorValue = analogRead(A0);
         if(sensorValue < sensorthresholdLow) {
+          Serial.println("Level up: 2");
           eventStatus = 2;
           break;
         }
@@ -199,12 +206,14 @@ void loop ( void ) {
         sensorValue = analogRead(A0);
         delay(1);
         if (sensorValue > sensorThresholdHigh) {
+          Serial.println("Level up: 3");
           eventStatus = 3;
           break;
         }
       }
     }
     if (eventStatus == 3) {
+      Serial.println("TOGGLE!!!!!!");
       setLamp("TOGGLE");
     }
 
