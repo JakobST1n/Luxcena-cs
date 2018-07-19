@@ -153,6 +153,11 @@ void setup ( void ) {
     Serial.println ( "HTTP server started" );
 }
 
+
+int sensorValue = 0;
+int eventStatus = 0;
+int sensorThresholdHigh = 870;
+int sensorthresholdLow = 500;
 void loop ( void ) {
     server.handleClient();
 
@@ -171,6 +176,41 @@ void loop ( void ) {
 
     if (!sensorActive) { return; }  // We can return to the beginning if the sensor is inactive
 
+    eventStatus = 0;
+    sensorValue = analogRead(A0);
+    delay(1);
+
+    if (eventStatus == 0) {
+      if (sensorValue > sensorThresholdHigh) {
+        eventStatus = 1;
+      }
+    }
+    if (eventStatus == 0) {
+      for (int i = 0; i > 10; i++) {
+        sensorValue = analogRead(A0);
+        if(sensorValue < sensorthresholdLow) {
+          eventStatus = 2;
+          break;
+        }
+      }
+    }
+    if (eventStatus == 2) {
+      for (int i = 0; i < 500; i++) {
+        sensorValue = analogRead(A0);
+        delay(1);
+        if (sensorValue > sensorThresholdHigh) {
+          eventStatus = 3;
+          break;
+        }
+      }
+    }
+    if (eventStatus == 3) {
+      setLamp("TOGGLE");
+    }
+
+
+
+    /*
     currentMillis = millis();
     if (currentMillis > lastSampleTime + sampleRate) {
         sample();
@@ -181,6 +221,7 @@ void loop ( void ) {
         bufferAlgo();
         dumpBuffer();
     }
+    */
 }
 
 void sample() {
